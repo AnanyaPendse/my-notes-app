@@ -26,6 +26,9 @@ import {
   X,
   Check,
   Save,
+  Leaf,
+  ArrowLeft,
+  RotateCcw,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -47,17 +50,31 @@ type Note = {
   image_paths: string[];
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 };
 
 const NOTES_KEY = ["notes"] as const;
+const TRASH_KEY = ["trash"] as const;
+const TRASH_DAYS = 30;
 
 async function fetchNotes(): Promise<Note[]> {
   const { data, error } = await supabase
     .from("notes")
     .select("*")
+    .is("deleted_at", null)
     .order("updated_at", { ascending: false });
   if (error) throw error;
-  return data as Note[];
+  return (data ?? []) as Note[];
+}
+
+async function fetchTrash(): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from("notes")
+    .select("*")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Note[];
 }
 
 async function signedUrls(paths: string[]): Promise<Record<string, string>> {
@@ -73,20 +90,32 @@ async function signedUrls(paths: string[]): Promise<Record<string, string>> {
   return map;
 }
 
+function daysLeft(deletedAt: string): number {
+  const ms = new Date(deletedAt).getTime() + TRASH_DAYS * 86400000 - Date.now();
+  return Math.max(0, Math.ceil(ms / 86400000));
+}
+
 function NotesPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"notes" | "trash">("notes");
 
   const { data: notes = [], isLoading } = useQuery({
     queryKey: NOTES_KEY,
     queryFn: fetchNotes,
   });
+  const { data: trash = [], isLoading: trashLoading } = useQuery({
+    queryKey: TRASH_KEY,
+    queryFn: fetchTrash,
+    enabled: view === "trash",
+  });
 
   useEffect(() => {
+    if (view !== "notes") return;
     if (!selectedId && notes.length > 0) setSelectedId(notes[0].id);
-  }, [notes, selectedId]);
+  }, [notes, selectedId, view]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -150,67 +179,94 @@ function NotesPage() {
           </Button>
         </div>
 
-        <div className="p-3 space-y-2">
-          <Button
-            onClick={() => createNote.mutate()}
-            disabled={createNote.isPending}
-            className="w-full justify-start"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New note
-          </Button>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
-              className="pl-9"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground px-3 py-6 text-center">Loading…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-3 py-6 text-center">
-              {notes.length === 0 ? "No notes yet. Click 'New note'." : "No matches."}
-            </p>
-          ) : (
-            filtered.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => setSelectedId(n.id)}
-                className={`w-full text-left rounded-lg px-3 py-3 transition border ${
-                  selectedId === n.id
-                    ? "bg-card border-accent/60 shadow-paper"
-                    : "border-transparent hover:bg-sidebar-accent"
-                }`}
+        {view === "notes" ? (
+          <>
+            <div className="p-3 space-y-2">
+              <Button
+                onClick={() => createNote.mutate()}
+                disabled={createNote.isPending}
+                className="w-full justify-start"
               >
-                <div className="font-serif text-base truncate text-foreground">
-                  {n.title.trim() || "Untitled"}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                  {n.content.trim() || "Empty note"}
-                </div>
-                <div className="text-[11px] text-muted-foreground/80 mt-1.5">
-                  {formatDistanceToNow(new Date(n.updated_at), { addSuffix: true })}
-                  {n.image_paths.length > 0 && ` · ${n.image_paths.length} image${n.image_paths.length > 1 ? "s" : ""}`}
-                </div>
-              </button>
-            ))
-          )}
-        </div>
+                <Plus className="w-4 h-4 mr-2" />
+                New note
+              </Button>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search"
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => setView("trash")}
+                className="w-full justify-start text-muted-foreground hover:text-foreground"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Trash
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground px-3 py-6 text-center">Loading…</p>
+              ) : filtered.length === 0 ? (
+                <p className="text-sm text-muted-foreground px-3 py-6 text-center">
+                  {notes.length === 0 ? "No notes yet. Click 'New note'." : "No matches."}
+                </p>
+              ) : (
+                filtered.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => setSelectedId(n.id)}
+                    className={`w-full text-left rounded-lg px-3 py-3 transition border ${
+                      selectedId === n.id
+                        ? "bg-card border-accent/60 shadow-paper"
+                        : "border-transparent hover:bg-sidebar-accent"
+                    }`}
+                  >
+                    <div className="font-serif text-base truncate text-foreground">
+                      {n.title.trim() || "Untitled"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {n.content.trim() || "Empty note"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground/80 mt-1.5">
+                      {formatDistanceToNow(new Date(n.updated_at), { addSuffix: true })}
+                      {n.image_paths.length > 0 && ` · ${n.image_paths.length} image${n.image_paths.length > 1 ? "s" : ""}`}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="p-3 space-y-2">
+            <Button
+              variant="ghost"
+              onClick={() => setView("notes")}
+              className="w-full justify-start"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back to notes
+            </Button>
+            <p className="text-xs text-muted-foreground px-2">
+              Items in trash are permanently removed after {TRASH_DAYS} days.
+            </p>
+          </div>
+        )}
       </aside>
 
-      {/* Editor */}
+      {/* Main */}
       <main className="flex-1 min-h-screen md:h-screen overflow-y-auto">
-        {selected ? (
+        {view === "trash" ? (
+          <TrashView trash={trash} loading={trashLoading} />
+        ) : selected ? (
           <NoteEditor key={selected.id} note={selected} />
         ) : (
           <div className="h-full min-h-[60vh] flex flex-col items-center justify-center text-center px-6">
-            <BookHeart className="w-12 h-12 text-accent mb-4" />
+            <Leaf className="w-12 h-12 text-accent mb-4" />
             <h2 className="font-serif text-2xl text-foreground">A blank page awaits.</h2>
             <p className="text-muted-foreground mt-2">Create your first note to get started.</p>
             <Button onClick={() => createNote.mutate()} className="mt-6">
@@ -266,19 +322,20 @@ function NoteEditor({ note }: { note: Note }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
   });
 
-  const del = useMutation({
+  const softDelete = useMutation({
     mutationFn: async () => {
-      if (paths.length > 0) {
-        await supabase.storage.from("note-images").remove(paths);
-      }
-      const { error } = await supabase.from("notes").delete().eq("id", note.id);
+      const { error } = await supabase
+        .from("notes")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", note.id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.setQueryData<Note[]>(NOTES_KEY, (prev) =>
         (prev ?? []).filter((n) => n.id !== note.id),
       );
-      toast.success("Note deleted");
+      qc.invalidateQueries({ queryKey: TRASH_KEY });
+      toast.success(`Moved to trash · kept for ${TRASH_DAYS} days`);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
@@ -319,7 +376,7 @@ function NoteEditor({ note }: { note: Note }) {
 
   return (
     <div className="max-w-3xl mx-auto px-6 md:px-10 py-8 md:py-12">
-      <div className="flex items-center justify-between mb-6 gap-2">
+      <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
         <p className="text-xs text-muted-foreground">
           Last edited {formatDistanceToNow(new Date(note.updated_at), { addSuffix: true })}
           {dirty && <span className="ml-2 text-accent-foreground/70">· unsaved changes</span>}
@@ -416,18 +473,143 @@ function NoteEditor({ note }: { note: Note }) {
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+            <AlertDialogTitle>Move this note to trash?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the note and any attached images.
+              It will stay in your trash for {TRASH_DAYS} days, then be permanently deleted.
+              You can restore it any time before then.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => del.mutate()}
+              onClick={() => softDelete.mutate()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Move to trash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function TrashView({ trash, loading }: { trash: Note[]; loading: boolean }) {
+  const qc = useQueryClient();
+  const [purgeTarget, setPurgeTarget] = useState<Note | null>(null);
+
+  const restore = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("notes")
+        .update({ deleted_at: null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, id) => {
+      qc.setQueryData<Note[]>(TRASH_KEY, (prev) => (prev ?? []).filter((n) => n.id !== id));
+      qc.invalidateQueries({ queryKey: NOTES_KEY });
+      toast.success("Note restored");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Restore failed"),
+  });
+
+  const purge = useMutation({
+    mutationFn: async (note: Note) => {
+      if (note.image_paths.length > 0) {
+        await supabase.storage.from("note-images").remove(note.image_paths);
+      }
+      const { error } = await supabase.from("notes").delete().eq("id", note.id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, note) => {
+      qc.setQueryData<Note[]>(TRASH_KEY, (prev) => (prev ?? []).filter((n) => n.id !== note.id));
+      toast.success("Note permanently deleted");
+      setPurgeTarget(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
+  });
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 md:px-10 py-8 md:py-12">
+      <div className="flex items-center gap-3 mb-2">
+        <Trash2 className="w-6 h-6 text-primary" />
+        <h2 className="font-serif text-3xl text-foreground">Trash</h2>
+      </div>
+      <p className="text-sm text-muted-foreground mb-8">
+        Notes here are kept for {TRASH_DAYS} days, then permanently removed.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : trash.length === 0 ? (
+        <div className="text-center py-20">
+          <Leaf className="w-10 h-10 text-accent mx-auto mb-3" />
+          <p className="text-muted-foreground">Your trash is empty.</p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {trash.map((n) => {
+            const left = n.deleted_at ? daysLeft(n.deleted_at) : 0;
+            return (
+              <li
+                key={n.id}
+                className="paper-card p-4 flex items-start justify-between gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-serif text-lg truncate text-foreground">
+                    {n.title.trim() || "Untitled"}
+                  </div>
+                  <div className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    {n.content.trim() || "Empty note"}
+                  </div>
+                  <div className="text-xs text-muted-foreground/80 mt-2">
+                    Deleted {n.deleted_at && formatDistanceToNow(new Date(n.deleted_at), { addSuffix: true })}
+                    {" · "}
+                    <span className={left <= 3 ? "text-destructive" : ""}>
+                      {left} day{left === 1 ? "" : "s"} left
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => restore.mutate(n.id)}
+                    disabled={restore.isPending}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-1.5" /> Restore
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPurgeTarget(n)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1.5" /> Delete forever
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <AlertDialog open={!!purgeTarget} onOpenChange={(o) => !o && setPurgeTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete this note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The note and any attached images will be removed for good.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => purgeTarget && purge.mutate(purgeTarget)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete forever
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
