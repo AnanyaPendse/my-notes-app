@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          deleted_at: string | null
           id: string
           image_paths: string[]
           title: string
@@ -27,6 +28,7 @@ export type Database = {
         Insert: {
           content?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_paths?: string[]
           title?: string
@@ -36,6 +38,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_paths?: string[]
           title?: string
@@ -49,7 +52,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      purge_expired_trashed_notes: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
