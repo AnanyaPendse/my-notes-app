@@ -156,15 +156,15 @@ function NotesPage() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside className="md:w-80 md:border-r border-border bg-sidebar flex flex-col md:h-screen">
+      {/* Nav rail */}
+      <aside className="md:w-60 md:border-r border-border bg-sidebar flex flex-col md:h-screen">
         <div className="p-5 border-b border-sidebar-border flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-accent/40 flex items-center justify-center">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-accent/40 flex items-center justify-center">
               <BookHeart className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <h1 className="font-serif text-xl leading-none text-foreground">Paper</h1>
+            <div className="min-w-0">
+              <h1 className="font-serif text-xl leading-none text-foreground truncate">Paper</h1>
               <p className="text-xs text-muted-foreground mt-0.5">your notebook</p>
             </div>
           </div>
@@ -173,90 +173,88 @@ function NotesPage() {
             size="icon"
             onClick={handleSignOut}
             title="Sign out"
-            className="text-muted-foreground hover:text-foreground"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
           >
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
 
-        {view === "notes" ? (
-          <>
-            <div className="p-3 space-y-2">
-              <Button
-                onClick={() => createNote.mutate()}
-                disabled={createNote.isPending}
-                className="w-full justify-start"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New note
-              </Button>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search"
-                  className="pl-9"
-                />
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => setView("trash")}
-                className="w-full justify-start text-muted-foreground hover:text-foreground"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Trash
-              </Button>
-            </div>
+        <div className="p-3 space-y-1.5 flex-1">
+          <Button
+            onClick={() => createNote.mutate()}
+            disabled={createNote.isPending}
+            className="w-full justify-start"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New note
+          </Button>
+          <Button
+            variant={view === "notes" ? "secondary" : "ghost"}
+            onClick={() => setView("notes")}
+            className="w-full justify-start"
+          >
+            <BookHeart className="w-4 h-4 mr-2" /> All notes
+          </Button>
+          <Button
+            variant={view === "trash" ? "secondary" : "ghost"}
+            onClick={() => setView("trash")}
+            className="w-full justify-start"
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> Trash
+          </Button>
+        </div>
+      </aside>
 
-            <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
-              {isLoading ? (
-                <p className="text-sm text-muted-foreground px-3 py-6 text-center">Loading…</p>
-              ) : filtered.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-3 py-6 text-center">
-                  {notes.length === 0 ? "No notes yet. Click 'New note'." : "No matches."}
-                </p>
-              ) : (
-                filtered.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => setSelectedId(n.id)}
-                    className={`w-full text-left rounded-lg px-3 py-3 transition border ${
-                      selectedId === n.id
-                        ? "bg-card border-accent/60 shadow-paper"
-                        : "border-transparent hover:bg-sidebar-accent"
-                    }`}
-                  >
-                    <div className="font-serif text-base truncate text-foreground">
+      {/* Notes list column */}
+      {view === "notes" && (
+        <section className="md:w-72 md:border-r border-border bg-sidebar/60 flex flex-col md:h-screen">
+          <div className="p-3 border-b border-sidebar-border space-y-2">
+            <h2 className="font-serif text-lg text-foreground px-1">Notes</h2>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search titles"
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground px-3 py-6 text-center">Loading…</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-3 py-6 text-center">
+                {notes.length === 0 ? "No notes yet. Click 'New note'." : "No matches."}
+              </p>
+            ) : (
+              filtered.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => setSelectedId(n.id)}
+                  className={`w-full text-left rounded-lg px-3 py-2.5 transition border ${
+                    selectedId === n.id
+                      ? "bg-card border-accent/60 shadow-paper"
+                      : "border-transparent hover:bg-sidebar-accent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="font-serif text-base truncate text-foreground flex-1 min-w-0">
                       {n.title.trim() || "Untitled"}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {n.content.trim() || "Empty note"}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground/80 mt-1.5">
-                      {formatDistanceToNow(new Date(n.updated_at), { addSuffix: true })}
-                      {n.image_paths.length > 0 && ` · ${n.image_paths.length} image${n.image_paths.length > 1 ? "s" : ""}`}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="p-3 space-y-2">
-            <Button
-              variant="ghost"
-              onClick={() => setView("notes")}
-              className="w-full justify-start"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back to notes
-            </Button>
-            <p className="text-xs text-muted-foreground px-2">
-              Items in trash are permanently removed after {TRASH_DAYS} days.
-            </p>
+                    {n.image_paths.length > 0 && (
+                      <ImagePlus className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground/80 mt-1">
+                    {formatDistanceToNow(new Date(n.updated_at), { addSuffix: true })}
+                  </div>
+                </button>
+              ))
+            )}
           </div>
-        )}
-      </aside>
+        </section>
+      )}
 
       {/* Main */}
       <main className="flex-1 min-h-screen md:h-screen overflow-y-auto">
@@ -268,7 +266,7 @@ function NotesPage() {
           <div className="h-full min-h-[60vh] flex flex-col items-center justify-center text-center px-6">
             <Leaf className="w-12 h-12 text-accent mb-4" />
             <h2 className="font-serif text-2xl text-foreground">A blank page awaits.</h2>
-            <p className="text-muted-foreground mt-2">Create your first note to get started.</p>
+            <p className="text-muted-foreground mt-2">Select a note, or create a new one.</p>
             <Button onClick={() => createNote.mutate()} className="mt-6">
               <Plus className="w-4 h-4 mr-2" /> New note
             </Button>
@@ -278,6 +276,7 @@ function NotesPage() {
     </div>
   );
 }
+
 
 function NoteEditor({ note }: { note: Note }) {
   const qc = useQueryClient();
