@@ -4,6 +4,16 @@ A warm, paper-feeling note-taking app with cloud sync, image attachments, and a 
 
 ![Stack](https://img.shields.io/badge/TanStack_Start-v1-1f6feb) ![React](https://img.shields.io/badge/React-19-61dafb) ![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 
+## Screenshots
+
+### Editing a note
+![Notes editor view](./docs/screenshots/notes-editor.png)
+
+### Trash (30-day retention)
+![Trash view](./docs/screenshots/notes-trash.png)
+
+
+
 ## Features
 
 - Email/password and Google sign-in
